@@ -14,7 +14,8 @@ Maintainer: Basil Stotz <stotz@amxa.ch>
 Package: $NAME
 Version: $VERSION 
 Architecture: amd64
-Depends: liblo-tools 
+Depends: liblo7
+Suggests: liblo-tools 
 Description: Audio scripting interpreter based on squirell
  Audio scripting interpreter based on squirell
 EOF
