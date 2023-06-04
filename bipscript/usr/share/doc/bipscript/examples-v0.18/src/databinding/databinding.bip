@@ -1,0 +1,100 @@
+/**
+# Data Binding
+
+In this example we show how to import complex data models into our script using JSON.
+
+## Basic JSON
+
+We can use the IO.Json object to read JSON from a string or IO.File, here we'll 
+use it to read a string with an object serialized to JSON:
+*/
+
+json <- IO.Json()
+
+local obj = @"
+{ ""key"" : ""value"", ""arr"": [0, 1, 2, 3] }
+"
+
+local data = json.read(obj)
+
+/**
+By calling the _read_ method with a single argument we parse the JSON into a bipscript 
+table, array or primitive. In this case we've parsed an object into a table whose fields 
+and subfields can be accessed like any other:
+
+*/
+
+println(data.arr[2])
+
+/**
+
+## JSON Object Binding
+
+We can also use the Json _read_ method to deserialize data into an existing class
+type. In this case it will parse the JSON into a new instance of an given class.
+
+We'll create a simple object model to show this, the first class "PluginFactory"
+creates new audio plugins of a given type with the given preset patch:
+*/
+
+class PluginFactory {
+	url = ""
+	preset = ""
+	function create() { 
+		return Lv2.Plugin(this.url, this.preset)
+	}
+}
+
+/**
+Next we define a "SongPlayer" class which contains a _play_ method to play a short tune written in 
+abc notation, using a synth plugin created via our factory.
+
+Note we can use an annotation on the factory field to specify the type of the field
+as "PluginFactory", without this annotation a subobject would be instantiated as a generic
+bipscript table.
+*/
+
+class SongPlayer {
+
+	pattern = ""
+	</ type = PluginFactory />
+	factory = {}
+
+	function play() {
+		local lv2 = factory.create()
+		lv2 => Audio.StereoOutput("out", true)
+
+		local midi = Midi.abc(pattern)
+		local clock = Time.BasicClock(160)
+		lv2.schedule(midi, 1.0, clock)
+
+		clock.start()
+	}
+}
+
+/** 
+Here's a JSON serialization of the above objects:
+*/
+
+local config = @"
+{
+	""pattern"" : ""|GA z G E2 F2|GA z B c2 d2|ec z d B2 G2|F8|"",
+	""factory"" : {
+		""url"" : ""http://calf.sourceforge.net/plugins/Monosynth"",
+		""preset"" : ""Velo Bee""
+		}
+}
+"
+
+/**
+To deserialize we call the _read_ method with the _SongPlayer_ class definition as the 
+second parameter:
+*/
+
+local song = json.read(config, SongPlayer)
+
+/**
+The method returns a new instance of the class ready to use:
+*/
+
+song.play()

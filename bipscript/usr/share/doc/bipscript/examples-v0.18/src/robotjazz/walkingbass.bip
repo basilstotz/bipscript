@@ -1,0 +1,136 @@
+/**
+# Walking Bass
+
+This script implements a walking bass line. It uses a random number generator combined with
+knowledge of the chord progression to create a unique line for each measure.
+
+The script makes use of the Calf FluidSynth LV2 plugin, the configuration for this plugin
+is defined in a separate class included here via the import statement:
+*/
+import "fluidsynth.bip"
+/**
+Define the class and member data:
+
+- a [FluidSynth Object](fluidsynth.html) loaded with patch 32 ("Acoustic Bass")
+- a random number generator
+*/
+class WalkingBass {
+
+  bass = FluidSynth(32)
+  rand = Math.Random()
+/**
+## Choosing Notes
+
+Define a function to choose a random note from the given chord, loop until the
+note is a different pitch than the last note to avoid repeats.
+*/
+  function chordNote(chord, last, velocity) {
+    local chosen = last
+    while(chosen.pitch == last.pitch) {
+      local index = rand.integer(chord.len())
+      chosen = chord[index].note
+    }
+    return Midi.Note(chosen.pitch, velocity, 0.25)
+  }
+/**
+Define a function to choose a leading note into the next chord.
+*/
+  function leadingNote(next, last, velocity) {
+    local root = next[0].note.pitch
+/**
+Loop until the chosen pitch is different than that of the last note.
+*/
+    local pitch = last.pitch
+    while(pitch == last.pitch) {
+/**
+Choose an option for leading note at random:
+*/
+      switch(rand.integer(6)) {
+/**
+Pitches a half step above or below the next root:
+*/
+        case 0:
+          pitch = root + 1
+          break
+        case 1:
+          pitch = root - 1
+          break
+/**
+Pitches a full step above or below the next root:
+*/
+        case 2:
+          pitch = root + 2
+          break
+        case 3:
+          pitch = root - 2
+          break
+/**
+Pitches a perfect fifth above or below the next root:
+*/
+        case 4:
+          pitch = root + 7
+          break
+        case 5:
+          pitch = root - 5
+          break
+      }
+    }
+/**
+Create and return a MIDI note from the chosen pitch:
+*/
+    return Midi.Note(pitch, velocity, 0.25)
+  }
+
+/**
+## Scheduling
+
+Define the main method to schedule a measure of bass. This method takes four arguments:
+
+- the number of the measure
+- a "power" level between 0 - 100
+- the current chord in the progression
+- the next chord in the progression
+*/
+  function schedule(measure, power, chord, next) {
+/**
+The chords as passed in are centered around middle C, transpose them two octaves lower
+so they contain bass notes.
+*/
+    chord = chord.transpose(-24)
+    next = next.transpose(-24)
+/**
+Calculate a velocity level based on the incoming power level, play the bass notes harder
+when the power is high and softer for lower power values:
+*/
+    local velocity = 64 + power / 2
+/**
+Schedule the root note of the chord as the first quarter note in the measure.
+*/
+    local rootNote = chord[0].note
+    bass.schedule(Midi.Note(rootNote.pitch, velocity, 0.25), measure)
+/**
+Schedule chord notes as the second and third quarter notes in the measure.
+*/
+    local note2 = chordNote(chord, rootNote, velocity)
+    bass.schedule(note2, measure + 0.25)
+
+    local note3 = chordNote(chord, note2, velocity)
+    bass.schedule(note3, measure + 0.5)
+/**
+Schedule a leading note to the next chord as the last quarter note in the measure.
+*/
+    local note4 = leadingNote(next, note3, velocity)
+    bass.schedule(note4, measure + 0.75)
+  }
+/**
+## Audio Output
+
+A simple function to return an Audio.Source which allows the class to connect to a mixer etc.
+*/
+  function output() { return bass }
+/**
+End of the class. See the [main script](robotjazz.html) for an example of using this class.
+*/
+}
+
+// vim: syntax=squirrel

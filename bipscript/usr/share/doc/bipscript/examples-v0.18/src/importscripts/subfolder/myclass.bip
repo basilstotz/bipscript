@@ -1,0 +1,9 @@
+/**
+# MyClass
+*/
+
+class MyClass {
+
+	name = "My Important Class"
+	
+}

@@ -1,0 +1,110 @@
+/**
+# Swing Drum
+
+This script implements a jazz swing beat played on a drumkit. It uses a random number
+generator to create unique patterns for each measure.
+
+The script makes use of the Calf FluidSynth LV2 plugin, the configuration for this plugin
+is defined in a separate class included here via the import statement:
+*/
+import "fluidsynth.bip"
+/**
+Define the class and member data:
+
+- a [FluidSynth Object](fluidsynth.html) loaded with patch #16384 as a drum sampler
+- a random number generator
+- an empty variable to hold the base MIDI pattern
+*/
+class SwingDrum {
+
+  drums = FluidSynth(16384)
+  rand = Math.Random()
+  swingPattern = null
+/**
+## Constructor
+
+The class constructor creates the base pattern from a simple drum pattern written in
+drum tablature:
+*/
+  constructor() {
+    local tab = Midi.Tab()
+    tab.velocity("x", 64)
+
+    swingPattern = tab.sequence(@"
+    51|x--x-xx--x-x|
+    44|---x-----x--|
+    ").pattern()
+  }
+/**
+## Scheduling
+
+Start a method to schedule the drums for a given measure and power level:
+*/
+  function schedule(m, power) {
+/**
+An array of weights, one for each quarter note triplet in the measure.
+*/
+    local weights = [30, 0, 40, 30, 0, 50,
+                     30, 0, 40, 30, 0, 50]
+/**
+Calculate a MIDI velocity level from the power level and use it for every note
+in the swing pattern:
+*/
+    local velocity = 50 + power / 2
+    local pattern = Midi.Pattern()
+    foreach(event in swingPattern) {
+        local note = Midi.Note(event.note.pitch, velocity, event.note.duration)
+        pattern.add(note, event.measure)
+    }
+/**
+Schedule the basic swing pattern for every bar.
+*/
+    drums.schedule(pattern, m)
+/**
+Create a MIDI note for the kick drum and schedule on beats one and three if the power level is
+above half (50%). Additionally schedule the kick for beats two and four if the power level is
+above 75%.
+*/
+    local kickNote = Midi.Note(36, velocity, 0.125)
+    if(power > 50) {
+      drums.schedule(kickNote, m) // beat 1
+      drums.schedule(kickNote, m + 0.5) // beat 3
+    }
+    if(power > 75) {
+      drums.schedule(kickNote, m + 0.25) // beat 2
+      drums.schedule(kickNote, m + 0.75) // beat 4
+    }
+/**
+Choose a snare type: use MIDI note 37 (snare side stick) unless the power level is
+above 80%, then use MIDI note 38 (snare drum).
+*/
+    local snareType = power < 80 ? 37 : 38
+/**
+Create a MIDI note for the snare and loop over all the triplets in the measure:
+*/
+    local snareNote = Midi.Note(snareType, velocity, 0.0833)
+    for(local i = 0; i < 12; i++) {
+/**
+Find the chance of a snare hit by multiplying the weight for this triplet
+by the power percentage:
+*/
+      local chance = weights[i] * power / 100
+/**
+Pick a random integer in the range 1-100 and fire off the snare if the pick is
+below our chance probability:
+*/
+      local pick = rand.integer(100) + 1
+      if(pick <= chance) {
+        drums.schedule(snareNote, m + i / 12.0)
+      }
+    }
+  }
+/**
+## Audio Output
+
+A simple function to return an Audio.Source which allows the class to connect to a mixer etc.
+*/
+  function output() { return drums }
+}
+
+// vim: syntax=squirrel

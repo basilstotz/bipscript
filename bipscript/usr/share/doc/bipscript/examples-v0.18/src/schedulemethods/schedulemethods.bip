@@ -1,0 +1,128 @@
+/**
+# Scheduling Methods
+
+We have seen several examples of scheduling events in the transport timeline, in this
+example we will see how to schedule the execution of predefined methods in a similar way.
+
+## Why and When
+
+Scheduling a method to execute at a particular point in time allows that method to use
+information about what has happened externally to the script, for example the notes recently
+played by a live musician or the current value of a control on a control surface. By scheduling
+our methods we retrieve this kind of information when we need it and can use it in our script to
+influence future execution allowing for a high degree of interactivity.
+
+Programming in this way adds complexity to the script and is not always straightforward. Also
+scheduling methods is effectively _delaying_ the execution of these methods, it is better to
+avoid this delay if it is not needed. So when is it appropriate to use this technique? We know we
+do NOT need to schedule methods in the following cases:
+
+- The script is not interactive, its execution does not depend on external factors such as live
+performers
+
+- The script _is_ interactive but can use more tradional control techniques, e.g. connecting a
+MIDI controller directly to the control parameter of a plugin or mixing audio levels via faders
+
+In this example we'll schedule a method that algorithmically generates MIDI notes using the value
+of a MIDI control as a variable. In this way a live performer can directly control the input
+parameter to the algorithm while the script is playing. This is a good application for scheduling
+methods because the script is interactive and in this case we cannot use a more traditional
+control method.
+
+## Audio and Control Setup
+
+We'll create a sampler, load it with 808-style samples and connect to the system outputs:
+*/
+
+local sampler = Lv2.Plugin("http://www.openavproductions.com/fabla", "fabla808")
+sampler => Audio.StereoOutput("main", true)
+
+/**
+Also we create a MIDI input for our control surface:
+*/
+
+local controller = Midi.Input("control")
+
+/**
+Now we listen for MIDI control change messages coming from the control surface by using
+the _onControl_ method to set an event handler.
+
+Note this event handler takes two arguments: the MIDI control change message itself, and
+the position in the timeline when it was received.
+
+In this case our handler method is very simple: we check the controller number of the CC
+message, if it is the right control we store its value. Note we store the value in a
+variable defined outside of the handler, this will allow us to use this value later in the
+script to tell us the last value sent by the control surface.
+*/
+local lastControlValue = 0
+controller.onControl(function(cc, pos) {
+  if(cc.controller == 15) {
+    lastControlValue = cc.value
+  }
+})
+
+/**
+## Create the Method
+
+Now we'll create the method that actually schedules the notes on the sampler. How fast the notes
+play will depend on a measure of "intensity" that we control with a knob on a hardware control
+surface.
+
+The last received MIDI control value
+can vary between 0 and 127, we divide by 16 and add 1 to give an intensity value in the range
+of 1 to 8, controlled by the performer.
+
+Multiplying by 4 translates this intensity value into a measure division ranging from 4 to 24,
+corresponding to quarter notes thru 24th notes respectively. Thus the performer can decide in
+real time how many notes to schedule for a given measure.
+*/
+
+function scheduleMeasure(m) {
+    local intensity = (lastControlValue / 16) + 1
+    local division = intensity * 4.0
+    println("intensity is " + intensity + " and division is " + division)
+    local clapNote = Midi.Note(38, 127, 1.0/division)
+    for(local i = 0; i < division; i++) {
+        sampler.schedule(clapNote, m + 0.25 + i/division)
+    }
+}
+
+/**
+We could simply call this method for each measure with no special scheduling, the problem with
+that is that _lastControlValue_ would return the value on the controller right then when the
+script is run, which may happen before the transport has even started.
+
+We want the method to execute right before the measure for which it will schedule notes,
+so that lastControlValue returns the value of the controller as it was set immediately before
+the beginning of that measure. To the performer operating the control surface it should feel as if
+the script is immediately responding to the change in control value.
+
+## Schedule the Method
+
+To schedule the method we call the _Time.schedule_ method in a simple loop, passing the
+_scheduleMeasure_ method as the first parameter, effectively scheduling it once per measure.
+
+The remaining parameters to the schedule method indicate exactly when the method should run,
+a decision that must be made carefully:
+
+- The method must be scheduled with enough time to run itself before any events it itself schedules.
+
+- If the method is scheduled too far in advance then it cannot take into account any event that
+  happens in the meantime, e.g. in this case the control change events
+
+In this case, we have scheduled the method to run one-quarter of a measure immediately
+before the measure we want to play the sampler:
+*/
+
+for(local measure = 2; measure < 6; measure++) {
+    Script.schedule(scheduleMeasure, measure - 0.25)
+}
+
+/**
+Finally, we start the script default clock:
+*/
+
+Time.def.start()
+
+// vim: syntax=squirrel

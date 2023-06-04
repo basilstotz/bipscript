@@ -1,0 +1,105 @@
+/**
+# MIDI Files
+
+The MIDI standard for storing MIDI data in a file is SMF (standard midi file). The Midi.File object allows us to load and save SMF files.
+
+## Creating a New File
+
+We can create a new, empty SMF file by calling the Midi.File constructor with no arguments:
+*/
+
+smf <- Midi.File()
+
+/**
+SMF files can be of type 0, 1 or 2, a new file object created as above will be type 1 by default. The first track of a type 1 SMF file 
+typically holds metadata about the piece including e.g. musical key signature and tempo. We can create such a track by creating a new 
+Midi.Sequence and adding these meta events:
+*/
+
+local seq0 = Midi.Sequence()
+seq0.add(Midi.KeySignature(0, false), 1.0)
+seq0.add(Midi.TempoChange(90), 1.0)
+seq0.add(Midi.TempoChange(135), 3.0)
+seq0.add(Midi.TempoChange(180), 5.0)
+
+/**
+Subsequent tracks in an SMF file will hold the note data, we can again create a Midi.Sequence for this:
+*/
+
+local seq1 = Midi.Sequence()
+local time = 1.0
+for(local i = 0; i < 24; i++) {
+	seq1.add(Midi.Note(60 + i, 64, 0.25), time)
+	time += 0.25
+}
+
+/**
+The Midi.File _track_ property holds the track sequence data as an array of Midi.Sequence objects, we can append our new sequences to 
+this property or just set a new array as follows:
+*/
+
+smf.track = [seq0, seq1]
+
+/**
+Now to save our new file we can just call the save file with a path:
+*/
+
+smf.save("test1.mid")
+
+/**
+## Reading a File
+
+We can read an existing SMF file by passing its path to the Midi.File constructor:
+
+*/
+
+file <- Midi.File("test1.mid")
+
+/**
+On a successful read we can now see the number of tracks and events:
+*/
+
+println("midi file is type " + file.type)
+println("track count is " + file.track.len())
+for(local i = 0; i < file.track.len(); i++) {
+	println("\ttrack " + i + " events: " + file.track[i].len())
+}
+
+/**
+Let's set up a synth plugin to test, we'll also make the default clock
+a Time.VariableClock so we can change the tempo:
+*/
+
+plugin <- Lv2.Plugin("http://calf.sourceforge.net/plugins/Monosynth")
+plugin => Audio.StereoOutput("out", true)
+Time.def = Time.VariableClock(120)
+
+/**
+We can use the _schedule_ method of the plugin to play the tracks that contain MIDI notes:
+*/
+
+plugin.schedule(file.track[1], 1.0)
+
+/**
+Note however in this case the plugin will act as a hardware synthesizer and will ignore SMF
+meta messages, including our tempo change events:
+*/
+
+plugin.schedule(file.track[0], 1.0) // does nothing!!
+
+/**
+We can still use these messages however by explicitly applying them to the default clock:
+*/
+
+foreach(event in file.track[0]) {
+	local mesg = event.message
+	if(mesg instanceof Midi.TempoChange) {
+		println("set bpm " + mesg.tempo + " @ " + event.measure)
+		Time.def.schedule(mesg.tempo, event.measure)
+	}
+}
+
+/**
+Now the sequence should play according to the tempo set in the file:
+*/
+Time.def.start()

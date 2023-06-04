@@ -1,0 +1,36 @@
+/**
+# FluidSynth Object
+
+This is a convenience class to abstract out the configuration of the Calf Fluidsynth plugin.
+
+The class is a subclass of Lv2.Plugin and can be used in the same places.
+*/
+class FluidSynth extends Lv2.Plugin {
+/**
+Define the location of the soundfont file, change this path if the location is different
+on your system:
+*/
+  SF_LOCATION = "/usr/share/sounds/sf2/FluidR3_GM.sf2"
+/**
+The class constructor takes the patch number as an argument:
+*/
+  constructor(patch) {
+/**
+Create an Lv2.State object and set two key/value pairs:
+
+- the soundfont location
+- the preset patch number as a string
+
+*/
+    local fluidState = Lv2.State({
+        ["urn:calf:soundfont"] = SF_LOCATION,
+        ["urn:calf:preset_key_set"] = patch.tostring()
+    })
+/**
+Call the base Lv2.Plugin constructor with the URL for Calf Fluidsynth and the initial state.
+*/
+    base.constructor("http://calf.sourceforge.net/plugins/Fluidsynth", fluidState)
+  }
+}
+
+// vim: syntax=squirrel

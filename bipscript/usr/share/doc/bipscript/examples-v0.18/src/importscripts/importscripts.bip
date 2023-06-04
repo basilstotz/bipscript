@@ -1,0 +1,114 @@
+/**
+# Importing External Scripts
+
+## Motivation
+
+As script applications get larger it becomes more difficult to deal with all the code in a single script file. 
+Bipscript allows splitting functionality between files via importing external scripts. The ability to import 
+external files also allows writing resuable classes that can be shared between applications.
+
+## The Import Statement
+
+The _import_ statement allows a script to specify one or more external script files to be imported. 
+
+Imported scripts add any definitions to the context of parent script. For example a script 
+that contains a class definition can be imported into another script that can now instantiate and 
+use that class.
+
+imported scripts are actually executed at import time, this means not only classes but any other
+definitions, e.g. functions or variables will also be available for use in the main script. This
+should be used carefully as it is easy to pollute the parent script's context when there are 
+many imports.
+
+Instant execution also means any side effects will be immediately triggered, scripts that are meant to be 
+imported should contain only definitions and not executable statements in the main body of the script 
+(i.e. outside of function and class definitions).
+
+This is important as there are no restrictions on what code may be put into an imported script: any number of 
+variable, class and function definitions, executable statements, etc may be placed in any script file.
+
+## Locating External Scripts
+
+Scripts located in the same directory as the parent script can simply be named:
+*/
+
+import "helper.bip"
+
+/**
+Scripts located below the parent directory can be referenced via slash notation, note the ".bip" extension 
+is optional and will be added if no other extension is given:
+*/
+
+import "subfolder/myclass"
+
+/**
+The class defined in this path can now be used
+
+_println(MyClass.name + " was imported")_
+
+Scripts located above the parent directory cannot be referenced in the same way, as
+dot notation is stripped:
+*/
+
+try {
+	import "../foo"
+} catch(e) {
+	println("as expected: " + e)
+}
+/**
+
+_"as expected: Import file could not be found: /foo.bip"_
+
+So relative script locations work only for scripts that are in the current directory or 
+below. What about scripts outside of this tree?
+
+Absolute script locations starting with a slash can be given to reference a script 
+anywhere in the filesystem as long as it is below a path designated as a _script root_.
+The given "absolute" path is actually relative within the larger filesystem as it designates 
+the path from the root to the given script.
+
+For example by designating the parent examples source folder as a script root then we can
+import the "Chord" class from the Robot Jazz example, even as it outside this example's subtree,
+by using an absolute path starting with a slash:
+*/
+import "/robotjazz/chord"
+
+/**
+## Script Roots
+
+There can be more than one script root, when importing an absolute path each root will be searched 
+to find a matching script until one is found. If no match is found in any root an exception 
+is thrown complaining that the path cannot be resolved.
+
+When a script is executed, the directory containing that script becomes an implicit script root.
+This means the script can import scripts in this directory or below via either relative or
+absolute paths. More importantly it allows these imported scripts to import each other using
+absolute paths.
+
+Each user also has a default script root at ~/.bip/lib/, scripts added under this location will
+be available to import via an absolute path from any script run by this user. Adding symbolic links
+to other directories in this location will allow any scripts under the linked directories to be 
+imported via absolute paths.
+
+[TBD: system wide script root under e.g. /usr/lib/]
+
+Script roots can also be designated for a given project or any directory location. The easiest way to 
+designate a script root is to create a .biproot file in the given directory:
+
+$ touch .biproot
+
+Note the existence of this file in the parent examples src folder, allowing scripts from other examples 
+to be imported via absolute path.
+
+Script roots are searched in the following order:
+
+- the implicit script root = the directory containing the main executing script 
+
+- any directory above the implicit script root that contains a ".biproot" file
+
+- the user-wide script root at ~/.bip/lib/
+
+- [TBD: the system wide script root]
+
+*/
+

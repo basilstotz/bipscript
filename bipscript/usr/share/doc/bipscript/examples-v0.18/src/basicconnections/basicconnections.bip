@@ -1,0 +1,164 @@
+/**
+# Making Connections
+
+In this example we will show how to create a plugin instruments and effects and connect them
+using MIDI and audio connections.
+
+The signal path for this example:
+
+System MIDI Input => Instrument Plugin => Effect Plugin => System Audio Output
+
+## MIDI Input
+
+First we will create the MIDI input, and store it in a script variable using the 
+[new slot operator](../hellosquirrel/hellosquirrel.html):
+*/
+
+midiInput <- Midi.Input("myinput")
+
+/**
+The Midi.Input object represents a system MIDI input to the script, at creation time we specify the
+name of the connection as it will appear to the system. If this line executes we should be able to see
+the input in e.g. QJackCtl.
+
+On the system side this input can connect to a MIDI hardware device or other software application,
+on the script side it can connect to any object that takes MIDI input (known as a Midi.Sink). In this
+example we'll use an intrument LV2 plugin that takes MIDI input and produces audio output.
+
+## Instrument Plugin
+
+The next step is to create the instrument plugin. When we create an LV2 plugin we have to specify the URI
+that identifies which plugin we want, in this case we have chosen the Monosynth LV2 instrument from
+[Calf Studio Gear](http://calf-studio-gear.org/).
+*/
+
+synth <- Lv2.Plugin("http://calf.sourceforge.net/plugins/Monosynth")
+
+/**
+Now we use a _connection operator_ to connect the MIDI input to our plugin:
+*/
+
+midiInput => synth
+
+/**
+Now any midi messages that come in via the midi input will be sent to the primary MIDI input of this plugin.
+
+## Effect Plugin
+
+Now we want to enhance the sound of our instrument plugin by adding an effect plugin to our signal chain,
+in this case we have chosen the Reverb plugin, also from the CALF plugin suite. We create the plugin
+in the exact same way we created the instrument plugin, by specifying its URI:
+*/
+
+effect <- Lv2.Plugin("http://calf.sourceforge.net/plugins/Reverb")
+
+/**
+Now we use the connection operator to make the audio connections between the output of the
+instrument and the input of the effect. Note there will be two audio connections in this case because
+both plugins are stereo, the connection operator will create both connections:
+*/
+
+synth => effect
+
+/**
+Note this is the same operator that we just used for the MIDI connection! This operator 
+=> is called the _multiplex connection operator_ and can be used to connect script
+objects via either MIDI or audio connections, according to the following logic:
+
+ - If the source of the connection is an Audio.Source and the target is an Audio.Sink
+then make the connection using audio outputs. Connections and connectors will be 
+connected in a one-to-one fashion until one or the other is exhausted.
+
+ - Else if the source of the connection is a Midi.Source and the target is a Midi.Sink 
+then make the connection using the default MIDI input and output of each.
+
+Note that the multiplex connection operator will never make audio _and_ MIDI connections
+at the same time.
+
+There is one other connection operator, the _direct connection operator_ which we will
+see later in this example.
+
+## Audio Output
+
+At this point we can play MIDI notes on the instrument and audio would flow into the reverb effect but we
+would still not hear anything - the effect plugin's audio outputs are not connected to anything.
+
+To fix this we create a StereoOutput object that connects to the main system outputs:
+*/
+
+mainOutput <- Audio.StereoOutput("main", true)
+
+/**
+Finally we use the connection operator in order to make the audio connections from the effect plugin to the
+system outputs.
+*/
+
+effect => mainOutput
+
+/**
+## Chaining Connections
+
+The evaluated result of a connection operation is simply the left hand side object
+which allows chaining.
+
+In this example so far we have made the connections one at a time, more typically
+we would chain these connections to show the signal path more clearly:
+*/
+
+midiInput => synth => effect => mainOutput
+
+/**
+
+## Direct Connections
+
+The multiplex connection operator is designed to solve the most common connection
+types but it does not work for all cases. In order to make more precise fine-grained
+connections we can use the _direct connection operator_.
+
+For example, let's reconnect the synth plugin to the reverb plugin but "cross
+cables" when we do, so the left synth output goes to the right input of the reverb
+and vice-versa:
+*/
+synth.output[0] -> effect.input[1]
+synth.output[1] -> effect.input[0]
+/**
+Note we are using the _input_ and _output_ busses of the plugin to specify the 
+channel of each, these are properties of Audio.Sink and Audio.Source respectively.
+
+Objects of type Midi.Sink will have a bus called _midiin_ and any Midi.Source will
+have a property _midiout_, these can also be indexed and connected using the direct
+connection operator.
+
+## Combining Connections
+
+In the above example we've created new connections between the synth and effect plugins, 
+what about the original connections? They were overwritten as the input to a plugin (or
+any other object) can only have a single connection. 
+
+If it is necessary to combine audio outputs to a single input the Audio.Mixer class can
+be used.
+
+Note that object outputs have no such limitation and can be connected to multiple inputs
+at the same time.
+
+## Stay Alive
+
+At this point if we ran the script it would create our desired signal path
+and then immediately terminate. There are no scheduled events of any kind
+in this script so the script process does not know to stay alive.
+
+To solve this we issue the _Script.stayAlive()_ command which keeps the
+script process active until:
+
+ - killed from the outside (e.g. SIGTERM)
+ - the _Script.exit()_ method is called from an event handler
+*/
+
+Script.stayAlive()
+
+/**
+Now the script is complete, any MIDI notes we send to the input will play
+on the synthesizer plugin thru the effect output to the system outputs.
+*/
+
+// vim: syntax=squirrel

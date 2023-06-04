@@ -1,0 +1,170 @@
+/**
+# Sequencing with Clocks
+
+## Default Clock
+
+Every script comes with a built-in clock that is used  by default for all timing functionality.
+This clock can be accessed via the property _Time.def_:
+*/
+
+println(Time.def)
+
+/**
+The default clock is an instance of _Time.BasicClock_, its API allows us to start and stop the clock and to change the tempo or time signature.
+
+Let's change the speed to 160 bpm
+*/
+
+Time.def.tempo = 160
+
+/**
+Any scheduled  events, of any type, will use this clock by default:
+*/
+
+// instantiate drum plugin and connect to output
+sampler <- Lv2.Plugin("http://gareus.org/oss/lv2/avldrums#BlackPearl")
+sampler => Audio.StereoOutput("main", true)
+
+
+// loop over four measures
+for(local m = 1; m <= 4; m++) {
+	// loop over 4 beats
+	for(local b = 0.0; b < 1.0; b += 0.25) {
+		sampler.schedule(Midi.Note(36, 99, 0.25), m + b)
+	}
+}
+
+/**
+Now to start the sequence we start the default clock:
+*/
+Time.def.start()
+
+/**
+
+## Variable Clock
+
+Sometimes we need clock functionality more advanced than provided by _BasicClock_, there is also a class _Time.VariableClock_.
+*/
+
+vclock <- Time.VariableClock(120)
+
+/**
+_VariableClock_ can be repositioned to a different clock position while the clock is running, position changes can also be scheduled at any point in the sequence.
+Repositioning to the future means skipping parts of the sequence, scheduled repositioning to the past can be used to implement looping.
+
+_VariableClock_ also allows for scheduling changes to the tempo and time signature to occur while the clock is running.
+
+We can change the default clock by setting the _Time.def_ property:
+*/
+
+Time.def = vclock
+
+/**
+Now from this point forward in the script any scheduled events will be timed to this new clock by default:
+*/
+
+// loop over eight measures
+for(local m = 1; m <= 8; m++) {
+	for(local b = 0.0; b < 1.0; b += 0.25) {
+		sampler.schedule(Midi.Note(36, 99, 0.25), m + b)
+	}
+}
+
+/**
+We've set the initial tempo to 120 BPM when we created the clock above, let's ramp that up to 184 in increments of eight notes over the first four bars:
+*/
+
+// 184 - 120 BPM = increase of 64 BPM
+// 8 notes per bar * 4 bars = 32 events
+// 64 BPM / 32 events = 2 BPM + per event
+local bpm = 120.0
+for(local m = 1.0; m <= 5.0; m += 0.125) {
+	vclock.schedule(bpm, m)
+	bpm += 2
+}
+
+
+/**
+Finally we need to call start() to start the sequence, but there's a problem: we don't want it to play at the same time as the earlier
+sequence example that uses the basic clock, it would be nice to delay starting for several seconds. We can acheive that by using yet another
+clock as a timer:
+*/
+
+timer <- Time.BasicClock(240) // 240 bpm = 1 measure per second
+Script.schedule(@(m) vclock.start(), 10, timer) // start after 10 seconds, using timer
+timer.start()
+
+/**
+Note we use the timer as the final argument to the schedule method, this schedules the event to happen at the given time according to the timer and NOT the
+default clock.
+*/
+
+/**
+## Controlling Clocks via OSC
+
+It is typical for a script to set up sequences and then start the default clock itself, but sometimes we want to control the sequence from outside the script.
+
+One way to achieve this is to create an OSC listener and convert OSC messages to clock commands:
+*/
+
+// yet another default clock + sequence
+basic <- Time.BasicClock(120)
+Time.def = basic
+for(local m = 1; m <= 4; m++) {
+	for(local b = 0.0; b < 1.0; b += 0.25) {
+		sampler.schedule(Midi.Note(36, 99, 0.25), m + b)
+	}
+}
+
+Osc.Input(3033).onReceive(function(mesg) {
+	if(mesg.path == "/start") {
+		basic.start()
+	}
+})
+
+
+/**
+We can trigger this clock to start by sending the appropriate message:
+
+$ oscsend localhost 3033 /start
+
+*/
+
+
+/**
+## Using Shared Clocks
+
+As seen above we can control basic or variable clocks via external controls, however this is meant for manual control. If we want to sync
+with one or more external applications at the frame level we need a shared clock.
+
+Under Linux when using the JACK audio subsystem there is a shared transport and the concept of a timebase master, that is the application
+that controls mapping frames to musical time (i.e. bars, beats, ticks).
+
+Any script can become the timebase master simply by instantiating the _Jack.Timebase_ object:
+*/
+
+timebase <- Jack.Timebase(120)
+
+/**
+Just as any other clock, we can set it as the default, and events will now be scheduled to the external transport
+*/
+
+Time.def = timebase
+for(local m = 1; m <= 4; m++) {
+	for(local b = 0.0; b < 1.0; b += 0.25) {
+		sampler.schedule(Midi.Note(36, 99, 0.25), m + b)
+	}
+}
+/**
+To start this sequence we do not need to call Time.def.start() from within the script, we can control the playback from any JACK transport-aware
+client, e.g. QJackCtl or Bipscript-IDE.
+
+There is also the _Jack.Clock_ object if don't want to be the system timebase but still want to follow the JACK transport as a client.
+
+## Still More Clocks
+
+Other clocks include the _BeatTracker_ objects which can be used to sync a sequence to an incoming stream of audio or MIDI.
+
+Any object that implements the Time.Clock interface can be used as the script default clock.
+
+*/

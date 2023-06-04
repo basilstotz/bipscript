@@ -1,0 +1,95 @@
+/**
+# A Simple Sample Player Using OSC
+
+This simple application listens for OSC messages that contain the following commands:
+
+- Load a sample into memory
+- Play the sample from its start
+- Stop the playing sample
+- Exit the application
+
+## Audio and OSC Setup
+
+We create an audio output and connect it to the first system output channel:
+*/
+
+local audioOutput = Audio.Output("out", "system:playback_1")
+
+/**
+We create an OSC input and bind it to a local port:
+*/
+
+local port = 3033
+local oscInput = Osc.Input(port)
+println("listening on port " + port + "..")
+
+/**
+## Handle OSC Messages
+
+We register an event handler on the OSC input to react to messages:
+*/
+oscInput.onReceive(function(message) {
+/**
+Start a switch statement based on the path of the incoming message:
+*/
+	switch(message.path) {
+/**
+If the message is _/load_ the filename of the sample to load will be the first argument 
+in the OSC message.
+
+We load this clip and then schedule it at the very beginning position (1.0) on the audio
+output, to be driven by the clock defined above.
+
+Note the BPM of the clock does not matter in this case as we are only scheduling one event 
+to occur at the very beginning of the timeline.
+*/
+	case "/load":
+		local file = message.arg(0)
+		local clip = Audio.Clip(file)
+		audioOutput.schedule(clip, 1.0)
+		break;
+/**
+OSC _/play_ message: calls the restart() method on the default clock which returns the transport 
+to the beginning and then starts the clock:
+*/
+	case "/play":
+		Time.def.restart()
+		break;
+/**
+OSC _/stop_ message: stops the default clock
+*/
+	case "/stop":
+		Time.def.stop()
+		break;
+/**
+OSC _/exit_ message: immediately shuts down the application
+*/
+	case "/exit":
+		Script.exit(0)
+		println("exiting")
+		break;
+/**
+A default case handles any other unrecognized message and prints a warning:
+*/
+	default:
+		println("warning: unknown message path " + message.path)
+	}
+})
+
+/**
+No scheduled events were added in the main part of the script so add the Script.stayAlive() method
+to keep the script from immediately completing:
+*/
+Script.stayAlive()
+
+/**
+## Testing
+
+To test this application we can send OSC messages from a terminal using the _oscsend_ command:
+
+    oscsend localhost 3033 /load s /path/to/file.wav
+    oscsend localhost 3033 /play
+    oscsend localhost 3033 /stop
+    oscsend localhost 3033 /exit
+
+*/

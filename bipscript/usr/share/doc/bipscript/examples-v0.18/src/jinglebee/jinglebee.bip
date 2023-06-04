@@ -1,0 +1,173 @@
+/**
+# Jingle Bee
+
+## Audio Setup
+
+Two instances of Fabla with different presets:
+*/
+local drums808 = Lv2.Plugin("http://www.openavproductions.com/fabla", "fabla808")
+local drumsHard = Lv2.Plugin("http://www.openavproductions.com/fabla", "fablaHardElectro")
+
+/**
+Nekobi for 303-style sounds:
+*/
+local nekobi = Lv2.Plugin("http://distrho.sf.net/plugins/Nekobi")
+nekobi.control("cutoff", 3)
+nekobi.control("resonance", 95)
+nekobi.control("env_mod", 0)
+
+/**
+Guitarix TS9 simulation, connect Nekobi to the input:
+*/
+local distortion = Lv2.Plugin("http://guitarix.sourceforge.net/plugins/gxts9#ts9sim")
+distortion.control("fslider1_", 1000)
+distortion.control("fslider2_", 1.0)
+nekobi => distortion
+
+/**
+Mixer for things that need reverb, just 3 inputs (drums sampler is stereo, distortion is mono)
+*/
+local gains = [[0.3, 0], [0, 0.3], [1, 1]]
+local reverbMixer = Audio.Mixer(3, 2, gains);
+[drums808, distortion] => reverbMixer
+
+/**
+Reverb is GxZita_rev1, mix all the way wet:
+*/
+local reverb = Lv2.Plugin("http://guitarix.sourceforge.net/plugins/gx_zita_rev1_stereo#_zita_rev1_stereo")
+reverb.control("DRY_WET_MIX", 1.0)
+reverbMixer => reverb
+
+/**
+Main mixer: 7 input channels with various gain settings, then mixer into main stereo output
+*/
+local gains = [[0.2, 0], [0, 0.2], [0.5, 0], [0, 0.5], 0.7, [1, 0], [0, 1]]
+local mainMixer = Audio.Mixer(7, 2, gains);
+[drums808, drumsHard, distortion, reverb] => mainMixer
+
+mainMixer => Audio.StereoOutput("main", true)
+
+/**
+## Midi Controller
+
+Create a system MIDI input, connect to a control surface via e.g. QJackCtl,
+and control nekobi parameters with knobs that send MIDI CC 15 and 16:
+*/
+Midi.Input("controller").onControl(function(cc, m) {
+	if(cc.controller == 16) {
+		println("cut " + cc.value / 1.27)
+		nekobi.control("cutoff", cc.value / 1.27)
+	} else if(cc.controller == 17) {
+		println("env " + cc.value / 1.27)
+		nekobi.control("env_mod", cc.value / 1.27)
+	}
+})
+
+/**
+## Midi Patterns
+
+All the drum patterns using drum tablature:
+*/
+local drumtab = Midi.Tab()
+drumtab.velocity("x", 127)
+
+local jingleHat = drumtab.sequence("43|-xxx-xxx|")
+local kickPattern = drumtab.sequence("50|x-x-x-x-|")
+local clickPattern = drumtab.sequence("51|-xx--x-x-xxx-x-x|")
+local hatPattern = drumtab.sequence("42|xxx-xxxxxxxx-xxx|")
+local congaPattern = drumtab.sequence(@"
+47|x--x---x-----x--|
+46|-xx-x-x-x---x-x-|
+")
+
+/**
+The lead pattern, a holiday classic with a minor twist, in ABC notation:
+*/
+local abc = Midi.Abc()
+local pattern1 = abc.sequence("D,_B, A,G, D,3 z|")
+local pattern2 = abc.sequence("D,_B, A,G, E,3 z|")
+local pattern3 = abc.sequence("E,C _B,A, F,3|z DD CA, _B,3|")
+
+function playLead1(bar) {
+  for(local i = 0; i < 4; i++) {
+    nekobi.schedule(pattern1, bar + i)
+  }
+}
+
+function playLead2(bar) {
+  nekobi.schedule(pattern1, bar)
+  nekobi.schedule(pattern2, bar + 1)
+  nekobi.schedule(pattern1, bar + 2)
+  nekobi.schedule(pattern2, bar + 3)
+}
+
+function playLead3(bar) {
+  nekobi.schedule(pattern1, bar)
+  nekobi.schedule(pattern2, bar + 1)
+  nekobi.schedule(pattern3, bar + 2)
+}
+
+/**
+## Arrangement
+
+We can schedule all the patterns above separately as we create them but the
+advantage of a central scheduling loop is we can see the entire arrangement as a whole.
+
+The simple arrangement in 4 bar chunks, builds up and back down:
+*/
+
+local CHUNK_SIZE = 4
+local arrangement = [1, 2, 3, 4, 4, 4, 4, 2, 5, 5, 6, 6, 7,
+                      7, 7, 7, 8, 8, 2, 2, 4, 4, 4, 4, 3, 3, 2, 1]
+
+/**
+Outer loop over the chunks:
+*/
+for(local chunk = 0; chunk < arrangement.len(); chunk++) {
+  local start = CHUNK_SIZE * chunk + 1
+  local level = arrangement[chunk]
+  if(level == 4) {
+    playLead1(start)
+  }
+  if(level == 5) {
+    playLead2(start)
+  }
+  else if(level > 5) {
+    playLead3(start)
+  }
+/**
+Loop over bars within the chunk
+*/
+  for(local i = 0; i < CHUNK_SIZE; i++) {
+    local bar =  start + i
+    drums808.schedule(jingleHat, bar)
+    if(level > 1) {
+      drums808.schedule(clickPattern, bar)
+    }
+    if(level > 2) {
+      drumsHard.schedule(kickPattern, bar)
+    }
+    if(level > 6) {
+      drumsHard.schedule(hatPattern, bar)
+    }
+    if(level > 7) {
+      drumsHard.schedule(congaPattern, bar)
+    }
+  }
+}
+
+/**
+To run:
+
+    $ bipscript jinglebee.bip
+
+don't forget to connect a control surface
+
+Script source is [here](http://www.bipscript.org/en/examples/jinglebee/jinglebee.html)
+Feel free to hack it!
+
+*/
+
+Time.def.start()
+
+// vim: syntax=squirrel

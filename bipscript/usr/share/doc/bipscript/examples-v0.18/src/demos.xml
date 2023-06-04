@@ -1,0 +1,23 @@
+<root>
+  <demo name="Robot Jazz Band">
+The [robot jazz band](robotjazz/robotjazz.html) is an interactive backing band
+for a human performer. The band consists of three bots:
+
+* [comp piano](robotjazz/comppiano.html) - plays comping chords on the piano
+* [swing drum](robotjazz/swingdrum.html) - plays a simple swing beat on the drums
+* [walking bass](robotjazz/walkingbass.html) - plays a simple walking bass line
+
+All three take a parameter called "power" which controls playing louder and busier vs softer and sparser.
+
+The [main script](robotjazz/robotjazz.html) adds one of each bot to an audio mixer,
+and controls the power level via three different sources:
+
+* MIDI control change messages from e.g. a control surface
+* Audio onset detection, e.g. on an audio stream of the human performer
+* OSC messages from any software or hardware source
+
+&lt;iframe src="https://player.vimeo.com/video/212649948" width="640" height="360" frameborder="0" webkitallowfullscreen mozallowfullscreen allowfullscreen&gt;&lt;/iframe&gt;
+
+[Robot Jazz Band Demo](https://vimeo.com/212649948) on [Vimeo](https://vimeo.com).
+  </demo>
+</root>

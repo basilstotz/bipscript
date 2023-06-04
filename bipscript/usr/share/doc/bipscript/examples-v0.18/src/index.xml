@@ -1,0 +1,41 @@
+<root>
+  <example tag="hellosquirrel" name="Hello Squirrel">
+    squirrel programming language basics
+  </example>
+  <example tag="basicconnections" name="Making Connections">
+    connect objects like plugins and audio and MIDI inputs/outputs
+  </example>
+  <example tag="schedulemidi" name="Scheduling MIDI">
+    sequence MIDI events to play on a plugin or MIDI output
+  </example>
+  <example tag="sequenceclocks" name="Sequencing With Clocks">
+    using different clock objects for timing and controlling sequences
+  </example>
+  <example tag="programchange" name="Sending Program Changes">
+    test synth patches by sending MIDI notes and program changes
+  </example>
+  <example tag="controlplugins" name="Controlling Plugins">
+    control plugin parameter values in real time
+  </example>
+  <example tag="mixaudio" name="Mixing Audio">
+    use an audio mixer to combine the output of two or more audio sources
+  </example>
+  <example tag="midifile" name="Reading/Writing MIDI Files">
+    read, edit, and write MIDI data stored in SMF files
+  </example>
+  <example tag="oscsampler" name="Using OSC Control">
+    listen for OSC commands to load, play and stop an audio clip
+  </example>
+  <example tag="importscripts" name="Importing External Scripts">
+     import external scripts for project organization and code reuse
+  </example>
+  <example tag="readwritefiles" name="Filesystem I/O">
+	read and write text and binary files in the filesystem
+  </example>
+  <example tag="databinding" name="Data Binding">
+	read and write data models using JSON or XML
+  </example>
+  <example tag="schedulemethods" name="Scheduling Methods">
+    schedule method execution in a transport timeline
+  </example>
+</root>

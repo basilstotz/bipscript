@@ -1,0 +1,120 @@
+/**
+# Reading and Writing Files
+
+This example shows how to read and write files in the filesystem.
+
+## Reading a Text File
+
+The _IO.File_ object represents a file in the filesystem, we can read from this file 
+via its _reader_ object:
+*/
+
+infile <- IO.File("testread.txt")
+reader <- infile.reader()
+
+/**
+The reader object has a number of methods for reading data, the easiest for reading text
+is often the lines() method which returns an interator:
+*/
+
+foreach(line in reader.lines()) {
+	println(line)
+}
+
+/**
+We can also use a foreach loop directly on the reader object to iterate over the utf-8 characters
+in the file.
+
+## Reading a Binary File
+
+Reading from a file with arbitrary binary data is also possible using the same reader
+object. In this case we use methods that read in various types as binary data:
+*/
+binreader <- IO.File("testread.dat").reader()
+println("float value: " + binreader.float())
+println("string value: " + binreader.string())
+println("boolean value: " + binreader.boolean())
+println("integer value: " + binreader.integer())
+
+/**
+
+## Writing Files
+
+In order to write files we use the _writer_ object. This object can write both text and binary data to a file,
+to write text, use the _print_  or _println_ methods:
+*/
+
+writer <- IO.File("testwrite.txt").writer()
+writer.println("Hello")
+writer.println("123")
+
+/**
+
+In order to write binary data of any primitive type use the _write_ method:
+
+*/
+binwriter <- IO.File("testwrite.dat").writer()
+binwriter.write(1.33)
+binwriter.write("a string")
+binwriter.write(true)
+binwriter.write(100)
+
+
+/**
+
+## Writing Custom Values
+
+Note that integers are 8 bytes long, if we want to write shorter values we cannot simply write them as integers
+but we can use the _buffer_ object to get around this limitation. 
+
+Buffer objects also have readers and writers so we can write our integer to an 8-byte buffer, just large enough 
+to hold it. Then we use the buffer slice method to return the first four bytes:
+*/
+
+
+function makeit4(ival) {
+	local buffer = buffer(8)
+	buffer.writer().write(ival)
+	return buffer.slice(0, 4)
+}
+
+/**
+(Note we have made some assumptions on endianness here!)
+
+The result can simply be written as a buffer:
+
+*/
+
+local iwriter = IO.File("testsmallint.dat").writer()
+local myint = 234
+iwriter.write(makeit4(myint))
+
+/**
+
+## File Handles
+
+When reading or writing a file as above the underlying file handle is tied to the lifecycle of the reader
+or writer object, and  will be closed when this object goes out of scope. There is usually no need to 
+explicitly close the file and nothing more needs to be done in the script.
+
+The exception to this happens when writing and then later reading the same file in the same script,
+due to buffering the reader may fail to read any data if the writer had not closed its underlying file handle.
+
+One solution is to define the writer as a local variable within a method, when the method returns
+the writer will go out of scope and close the file handle.
+
+It is also possible to explicitly close the file handle via setting the variable to null (or any other value):
+*/
+
+rwfile <- IO.File("testfilehandle.dat")
+
+local writer = rwfile.writer()
+writer.write("string")
+writer.write(3.333)
+
+writer = null // need this to close file
+
+local reader = rwfile.reader()
+println(reader.string())
+println(reader.float())
+

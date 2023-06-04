@@ -1,0 +1,59 @@
+/**
+# Auditioning a Synth
+
+In this example we test a melody in different synth voices by sending MIDI notes and program
+change events to an external synthesizer, which could be hardware or software.
+
+## MIDI Setup
+
+First let's create a MIDI system output to connect to the synth:
+*/
+
+local midiOutput = Midi.Output("synth")
+
+/**
+## A Simple MIDI Pattern
+
+Now we'll create a one-bar MIDI Pattern from ABC notation, a simple melody courtesy of
+Ludwig van Beethoven:
+*/
+local pattern = Midi.abc("| B B c d d c B A |")
+
+/**
+## Schedule Notes and Program Changes
+
+We want to test all the patches for the current bank so we create a basic loop to
+count over all the patches in the current bank (note program numbers are zero based):
+*/
+for(local program = 0; program < 8; program++) {
+/**
+We only want to schedule our midi pattern for every other measure to give the synthesizer
+a pause to change the patch, a process which may take some time on some equipment.
+Also note the measure counts starts at one and not zero so we compute the measure as so:
+*/
+    local measure = program * 2 + 1
+/**
+The Midi.ProgramChange object represents a program change message:
+*/
+	local pc = Midi.ProgramChange(program)
+/**
+We schedule the program change to occur at the halfway mark of the first bar of
+each iteration, this gives the last iteration a half-measure to fade out (if there is
+e.g. a reverb or echo effect) and also gives the synth a half-measure to change the patch
+before the next melody plays:
+*/
+    midiOutput.schedule(pc, measure + 0.5)
+
+/**
+Now schedule the melody to play at the second measure of each loop iteration:
+*/
+    midiOutput.schedule(pattern, measure + 1)
+}
+
+/**
+Starting the default clock will play the melody on each of the patches in order.
+*/
+
+Time.def.start()
+
+// vim: syntax=squirrel

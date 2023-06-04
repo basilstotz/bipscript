@@ -1,0 +1,113 @@
+/**
+# Hello Squirrel
+
+The Bipscript language is descended from the Squirrel programming language, to which Bipscript 
+adds the [Bipscript API](../../api/index.html) as well as other language constructs, e.g. an
+import statement and new operator types to manage audio and midi connections. 
+
+[Squirrel](http://squirrel-lang.org/) is an object-oriented programming language
+used as the scripting language in several video game titles. It was designed to be performant in
+real-time applications, this makes it ideal for use in video games and now audio scripting as well.
+The Squirrel project provides [reference documenation](http://www.squirrel-lang.org/squirreldoc/reference/language.html)
+
+Note Bipscript does not include the Squirrel standard library, similar general language
+functionality is provided in the [Bipscript API](../../api/index.html).
+
+## Basic Types and Data Structures
+
+Primitive types in Squirrel include types for boolean values, floating point numbers, integers
+and strings. Here we declare some primitive types using the _local_ keyword which designates a
+variable with local scope:
+*/
+
+local foo = "I'm a string"
+local n = 10
+local x = 0.125
+
+/**
+Container data structures include arrays and tables. Arrays are a zero-indexed sequence of
+any type:
+*/
+
+local anArray = [2, "string", 3.03]
+print(anArray[1] + "\n") // prints "string" (plus a newline)
+
+/**
+Tables are containers that associate each value with a key:
+*/
+
+local bob = {
+    name = "Bob Johnson",
+    active = true,
+    instruments = ["bass", "keyboards"]
+}
+print(bob.instruments[0] + "\n") // prints "bass"
+
+/**
+## New Slot Operator
+
+When using the table data structure note that attempting to access a table index that does not
+exist will result in an error, here we use try/catch statements to trap the error:
+*/
+try {
+	print(bob.age)
+} catch(e) {
+	print(e + "\n")
+}
+// prints "the index 'age' does not exist"
+
+/**
+The same error will be thrown when trying to assign to an unknown index, in this case use the
+_new slot operator_:
+*/
+
+bob.age <- 42
+
+print(bob.age + "\n")
+
+/**
+Note also there is an implicit table associated with the script context, we can assign to its slots as well:
+*/
+
+scriptVar <- "hello"
+
+/**
+## Conditional Statements and Looping
+
+Basic conditional branching is implemented with an _if_ statement similar to other languages:
+*/
+local x = 5
+if(x > 3) {
+    print(x + " is greater than 3\n")
+}
+/**
+There are also _while_ loops which work as expected:
+*/
+local y = 1
+while(y <= 10) {
+    print("y is now " + y + "\n")
+    y++
+}
+/**
+An alternative to the above is the standard _for_ loop:
+*/
+for(local z = 1; z <= 10; z++) {
+    print("z is now " + z + "\n")
+}
+/**
+There is also a _foreach_ loop for arrays and tables:
+*/
+foreach(key, val in bob) {
+    print("key '" + key + "' has value: " + val + "\n")
+}
+
+/**
+## More Information
+
+- [Wikipedia article](https://en.wikipedia.org/wiki/Squirrel_%28programming_language%29) on Squirrel
+- Squirrel language [website](http://squirrel-lang.org/)
+- Squirrel [reference manual](http://www.squirrel-lang.org/squirreldoc/reference/language.html)
+
+*/
+
+// vim: syntax=squirrel

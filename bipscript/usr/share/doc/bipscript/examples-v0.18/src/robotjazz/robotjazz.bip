@@ -1,0 +1,234 @@
+/**
+# Robot Jazz Band
+
+The robot jazz band consists of three bots:
+
+- [comp piano](comppiano.html) - plays comping chords on the piano
+
+- [swing drum](swingdrum.html) - plays a simple swing beat on the drums
+
+- [walking bass](walkingbass.html) - plays a simple walking bass line
+
+All three take a parameter called "power" which means playing louder and busier vs softer and sparser.
+
+The main script adds one of each bot to an audio mixer, and controls the power level via
+three different sources:
+
+- MIDI control change messages from e.g. a control surface
+
+- Audio onset detection, e.g. on the audio stream of a human performer
+
+- OSC messages from any software or hardware source
+
+
+## Main Script
+
+Start the main script by importing the necessary objects via the import statement, all
+the players plus a helper [Chord object](chord.html):
+*/
+import "chord.bip"
+import "comppiano.bip"
+import "swingdrum.bip"
+import "walkingbass.bip"
+
+/**
+Define the chord progression, change this array to change the progression, the band
+should be able to follow any arbitrary progression:
+*/
+local prog = ["Dm7", "G7", "Cmaj7", "Cmaj7"] // 2-5-1
+
+/**
+Now instantiate the players:
+*/
+local bass = WalkingBass()
+local drums = SwingDrum()
+local piano = CompPiano()
+
+/**
+## Audio Setup
+
+Create an audio mixer and connect the players to the mixer inputs, note the mixer input
+channel count is twice the number of players as they are all stereo:
+*/
+local mixer = Audio.Mixer(6, 2);
+[bass.output(), drums.output(), piano.output()] => mixer
+
+/**
+Connect the mixer to a system stereo output connected to the soundcard:
+*/
+mixer => Audio.StereoOutput("main", true)
+
+/**
+## MIDI Control Surface
+
+A MIDI system input for a control surface:
+*/
+local controlInput = Midi.Input("control")
+/**
+Define an event handler for the control surface: on receipt of every MIDI control message
+check the controller number to see if it matches the desired control number. If so, take
+the control value and normalize it to a value between 0 and 100.
+
+Store the normalized value in a variable "controlPower" defined outside the scope of the
+function so its last value will be available to the rest of the script:
+*/
+local controlPower = 0
+controlInput.onControl(function(cc, pos) {
+  if(cc.controller() == 15) {
+    controlPower = cc.value() * 100 / 127
+  }
+})
+
+/**
+## Audio Control
+
+Now create a system audio input:
+*/
+local input = Audio.Input("input", "system:capture_1")
+
+/**
+Create an audio onset detector and connect the audio input, set the threshold slightly on
+the sensitive side (use values above 1.0 to make less sensitive):
+*/
+local detector = Audio.OnsetDetector()
+detector.threshold = 0.9
+input => detector
+/**
+Now define a variable and an event handler to be called on each onset, increment the variable
+on each onset but do not allow the total sum to go above 100:
+*/
+local onsetPower = 0
+detector.onOnset(function(v, m) {
+  onsetPower += 5
+  if(onsetPower > 100) {
+    onsetPower = 100
+  }
+})
+
+/**
+## OSC Control
+
+Create an OSC input to listen on a local port.
+*/
+local oscInput = Osc.Input(5100)
+/**
+Declare a variable to hold the OSC power value and assign an event handler
+for incoming messages:
+*/
+local oscPower = 0
+oscInput.onReceive(function(mesg) {
+/**
+Filter the OSC power change messages by path. There is only a single valid path defined here
+but other paths can be defined in the same way.
+*/
+  if(mesg.path == "/robotjazz/power") {
+/**
+Grab the value of the first OSC message parameter and validate to ensure the power value
+is an integer between the values of 0 and 100.
+*/
+    oscPower = mesg.arg(0)
+    if(typeof oscPower != "integer") { oscPower = 0 }
+    if(oscPower < 0) { oscPower = 0 }
+    if(oscPower > 100) { oscPower = 100 }
+  }
+})
+
+/**
+## Control and Schedule Logic
+
+Determine the power level: first check the value from the MIDI control surface, if zero then
+check the value from OSC messages, if that is also zero then use the power value from
+the onset detector.
+*/
+function getPower() {
+
+  local power = controlPower
+  if(power == 0) {
+    power = oscPower
+  }
+  if(power == 0) {
+    power = onsetPower
+  }
+/**
+Reset the onsetPower so it builds up between calls, the MIDI and OSC values are _not_
+reset each measure and so persist until changed.
+*/
+  onsetPower = 0
+  return power
+}
+/**
+Now define a method to schedule all notes for a given measure and call the power function
+defined above to get the latest power value:
+*/
+function playMeasure(measure, chord, nextChord) {
+      local power = getPower()
+/**
+Schedule each of the players for this measure and this power value:
+*/
+      piano.schedule(measure, power, chord)
+      bass.schedule(measure, power, chord, nextChord)
+      drums.schedule(measure, power)
+}
+
+/**
+## Arrangement
+
+Start the outer loop for number of progressions (hard-coded here but could be a command
+line argument to set the length of the track):
+*/
+for(local i = 0; i < 32; i++) {
+/**
+Inner loop over the number of bars in the progression:
+*/
+  local len = prog.len()
+  for(local j = 0; j < len; j++) {
+/**
+Create a [Chord object](chord.html) from the current chord in the progression.
+*/
+    local chord = Chord(prog[j], 0.25)
+/**
+Find the index of the next chord and make another [Chord object](chord.html):
+*/
+    local next = (j == len - 1) ? 0 : j + 1
+    local nextChord = Chord(prog[next], 0.25)
+/**
+Calculate the measure from the inner and outer loop counters, remember
+there is no zero measure so the count starts at measure one:
+*/
+    local measure = i * prog.len() + j + 1
+/**
+Now schedule the "playMeasure" function to execute in the transport, without this step
+the loops would run instantly and ignore the power values that are collected from the
+various inputs.
+
+There is a tradeoff in timing: scheduling too early means not taking into account the
+latest power information, however scheduling too late means not enough time for the players
+to receive their instructions and the risk of dropping notes.
+
+Here the function is scheduled to execute at a position equal to the third quarter note in the
+measure, this leaves a single quarter note in duration for the function to execute before
+the next measure starts.
+
+The measure argument to the function is the same as the one passed in when scheduling
+the function, so the _playMeasure_ is called with measure + 0.25 to indicate we are scheduling
+for the start of the next measure.
+*/
+    Script.schedule(function(measure) {
+      playMeasure(measure + 0.25, chord, nextChord)
+    }, measure + 0.75)
+  }
+}
+
+/**
+## Start the Clock
+
+Set the default script clock to 99 bpm and start:
+*/
+Time.def.tempo = 99
+Time.def.start()
+/**
+Once the script has started, test power changes by sending MIDI or OSC messages or sending audio 
+to the first system capture input.
+*/
+
+// vim: syntax=squirrel

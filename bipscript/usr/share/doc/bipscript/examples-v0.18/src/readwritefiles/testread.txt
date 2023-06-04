@@ -1,0 +1,10 @@
+
+A file with text
+
+utf-8 should work too
+
+你好
+
+مرحبًا
+
+Γεια σας

@@ -1,0 +1,88 @@
+/**
+# Comp Piano
+
+This script implements a piano playing a [comping](https://en.wikipedia.org/wiki/Comping)
+rhythm. It uses a random number generator combined with a predefined set of weights to create
+unique patterns for each measure.
+
+The script makes use of the Calf FluidSynth LV2 plugin, the configuration for this plugin
+is defined in a separate class included here via the import statement:
+*/
+import "fluidsynth.bip"
+/**
+Define the class and member data:
+
+- a [FluidSynth Object](fluidsynth.html) loaded with patch zero as a piano sampler
+- an array of 12 weights, one for each triplet quarter note in a measure
+- a random number generator
+*/
+class CompPiano {
+
+  piano = FluidSynth(0)
+  weights = [30, 0, 30, 30, 0, 50,
+             30, 0, 30, 30, 0, 50]
+  rand = Math.Random()
+/**
+## Scheduling
+
+Start a method to schedule the comping for a particular measure, with three arguments:
+
+- the number of the measure
+- a "power" level between 0 - 100
+- the chord to play for this measure
+*/
+  function schedule(measure, power, chord) {
+/**
+Objects are passed by reference so make a local copy ("clone") of the chord, this allows
+local modifications without any side effects to the caller:
+*/
+    local ch = clone chord
+/**
+Now with the random number generator, choose a random chord inversion up to the size of the
+chord, zero equals "don't invert at all":
+*/
+    local level = rand.integer(ch.len())
+    if(level) { ch = ch.invert(level) }
+/**
+Calculate a velocity level based on the incoming power level, play the chord harder
+when the power is high and softer for lower power values:
+*/
+    local velocity = 30 + power / 2
+    local pattern = Midi.Pattern()
+    foreach(i, event in ch) {
+        local note = event.note
+        pattern.add(Midi.Note(note.pitch, velocity, note.duration), 1)
+    }
+/**
+Loop over each quarter note triplet:
+*/
+    for(local i = 0; i < 12; i++) {
+/**
+Adjust the weight for this triplet by the incoming power value, higher power values
+will mean more chance of firing a chord for this note:
+*/
+      local chance = weights[i] * power / 100
+/**
+Call the random number generator for an integer in the range 1-100, if it is under
+the weight for this note then schedule the chord to play:
+*/
+      local pick = rand.integer(100) + 1
+      if(pick <= chance) {
+        piano.schedule(pattern, measure + i/12.0)
+      }
+    }
+  }
+/**
+## Audio Output
+
+Define a simple method for an audio output as this class itself is not of type Audio.Source
+and so cannot be connected directly to e.g. a system output or audio mixer. The piano variable
+holds a [FluidSynth Object](fluidsynth.html) which _is_ of type Audio.Source:
+*/
+  function output() { return piano }
+/**
+End of the class. See the [main script](robotjazz.html) for an example of using this class.
+*/
+}
+
+// vim: syntax=squirrel

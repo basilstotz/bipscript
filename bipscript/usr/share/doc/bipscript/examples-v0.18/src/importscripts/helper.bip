@@ -1,0 +1,10 @@
+/**
+# Helper file
+*/
+
+class Helper {
+
+	function help() {
+		println("is this helping??")
+	}
+}

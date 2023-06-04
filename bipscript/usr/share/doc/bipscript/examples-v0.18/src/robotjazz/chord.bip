@@ -1,0 +1,125 @@
+/**
+## Chord Object
+
+This is a helper class to represent a musical chord, it was written for use by the robot
+jazz band example but could be used anywhere it is helpful.
+
+The class is defined as a subclass of Midi.Pattern and can be used wherever a Pattern would
+be, e.g. for scheduling on a plugin or MIDI output.
+*/
+class Chord extends Midi.Pattern {
+/**
+Define MIDI pitch values for note strings:
+*/
+  pitches = {
+    A = 57, ["A#"] = 58, ["Bb"] = 58,
+    B = 59,
+    C = 60, ["C#"] = 61, ["Db"] = 61,
+    D = 62, ["D#"] = 63, ["Eb"] = 63,
+    E = 64,
+    F = 65, ["F#"] = 66, ["Gb"] = 66,
+    G = 67, ["G#"] = 68, ["Ab"] = 68
+  }
+/**
+Define intervals for chord types, add entries here to support more chord types. Intervals are
+listed in half steps from the root, the root itself is not listed.
+*/
+  intervals = {
+    [""] = [4, 7],
+    maj = [4, 7],
+    m = [3, 7],
+    min = [3, 7],
+    ["7"] = [4, 7, 10],
+    m7 = [3, 7, 10],
+    maj7 = [4, 7, 11],
+    M7 = [4, 7, 11],
+    ["6"] = [4, 7, 9],
+    m6 = [3, 7, 9],
+    aug = [4, 8],
+    dim = [3, 6],
+    ["9"] = [4, 7, 10, 14],
+    m9 = [3, 7, 10, 14],
+    maj9 = [4, 7, 11, 14],
+    M9 = [4, 7, 11, 14],
+    sus2 = [2, 7],
+    sus4 = [5, 7],
+    ["5"] = [7]
+  }
+
+/**
+## Constructor
+The constructor for the chord must be called with three arguments:
+
+- the name of the chord including root and type e.g. "Gmaj7"
+- the duration of the chord
+- the bar division unit for the duration, e.g. 4 for quarter notes
+*/
+  constructor(name, duration) {
+/**
+Call the base class constructor to create a valid Midi.Pattern:
+*/
+    base.constructor()
+/**
+Use a regular expression to parse the chord name into root + type:
+*/
+    local ex = regex(@"^([A-G][#,b]?)([a-z,2-9]*)")
+	local res = ex.match(name)
+    if(!res) {
+      throw "chord not recognized: " + name
+    }
+	local root = res[1]
+	local type = res[2]
+
+/**
+Find the pitch of the root note from the table above.
+*/
+    local pitch = pitches[root]
+/**
+Create a Midi.Note for the root note with the given duration, then pass it to the
+_add_ method of the Midi.Pattern base class:
+*/
+    add(Midi.Note(pitch, 127, duration), 1)
+/**
+For each of the intervals in the chord create a Midi.Note with the correct pitch
+and again pass it to the _add_ method of the Midi.Pattern base class:
+*/
+    foreach(interval in intervals[type]) {
+      add(Midi.Note(pitch + interval, 127, duration), 1)
+    }
+/**
+End of the constructor.
+*/
+  }
+
+/**
+## Chord Inversion
+
+Define a method for inverting the chord, takes as argument the inversion level, e.g.
+1 for first inversion, 2 for second inversion, up to the size of the chord.
+*/
+  function invert(level) {
+    if(level <= 0) {
+      throw "chord inversion level must be at least 1"
+    }
+    if(level >= len()) {
+      throw "chord is not large enough for inversion level " + index
+    }
+	local ret = Midi.Pattern()
+	foreach(i, event in this) {
+		local note = event.note
+		if(i < level) {
+			local transpose = note.pitch + 12
+			ret.add(Midi.Note(transpose, note.velocity, note.duration), 1)
+		} else {
+			ret.add(note, 1)
+		}
+	}
+	return ret
+  }
+
+/**
+End of the class.
+*/
+}
+
+// vim: syntax=squirrel

@@ -1,0 +1,124 @@
+/**
+# Scheduling MIDI Events
+
+MIDI events can be scheduled on any object that implements the Midi.Sink interface, current implementations include
+Midi.Output and Lv2.Plugin.
+
+## Audio Setup
+
+For this example we'll show scheduling events on a synth plugin that accepts MIDI input. We connect this synth plugin
+directly to a stereo output:
+*/
+
+synth <- Lv2.Plugin("http://calf.sourceforge.net/plugins/Monosynth", "Velo Bee")
+synth => Audio.StereoOutput("main", true) 
+
+/**
+## Scheduling MIDI Notes
+
+The Midi.Note class can be used to schedule single MIDI notes. When we create a MIDI note we specify the following values:
+
+- Pitch: should be in the range 0-127
+- Velocity: should be in the range 1-127
+- Duration: how long the note should be played in fractions of a measure e.g. "0.25" for a quarter note
+
+Here we use a loop to schedule a single measure of quarter notes with rising pitch on the first measure:
+*/
+
+for(local b = 0; b < 4; b++) {
+	local note = Midi.Note(48 + b, 64, 0.25)
+	synth.schedule(note, 1 + b * 0.25)
+}
+
+/**
+## Scheduling MIDI Patterns
+
+We can use the Midi.Pattern class to group notes together into a timed pattern:
+
+*/
+
+pattern <- Midi.Pattern()
+pattern.add(Midi.Note(48, 64, 0.25), 1.0) // start of the pattern is measure 1.0
+pattern.add(Midi.Note(49, 64, 0.125), 1.25)
+pattern.add(Midi.Note(50, 64, 0.125), 1.375)
+pattern.add(Midi.Note(51, 64, 0.5), 1.5)
+
+/**
+Note we can access the note events in a pattern by using array-like indexing and we can also iterate
+ over all the events using the foreach loop:
+
+*/
+	
+pattern[0] // the first event in the pattern 
+	
+foreach(event in pattern) {
+    println(event.note.pitch + " @ " + event.measure)
+}
+
+/**
+Let's schedule this pattern to play at measure 2:
+*/
+synth.schedule(pattern, 2.0)
+
+/**
+## Scheduling Raw MIDI Messages
+
+It is also possible to schedule lower-level MIDI messages directly e.g. we can send 
+Midi.Control (CC) messages to those plugins that support it.
+
+Here we'll schedule a couple of notes using NOTEON and NOTEOFF messages directly:
+*/
+
+synth.schedule(Midi.NoteOn(48, 64), 3.0)
+synth.schedule(Midi.NoteOff(48, 64), 3.5)
+synth.schedule(Midi.NoteOn(51, 64), 3.5)
+synth.schedule(Midi.NoteOff(51, 64), 4.0)
+
+/**
+## Scheduling MIDI Sequences
+
+Just as the Midi.Pattern class above can group MIDI notes, the Midi.Sequence class can be used
+to group Midi messages.
+
+We can create a Midi.Sequence directly:
+*/
+
+sequence <- Midi.Sequence()
+sequence.add(Midi.NoteOn(48, 64), 1.0)
+sequence.add(Midi.NoteOff(48, 64), 1.5)
+sequence.add(Midi.NoteOn(51, 64), 1.5)
+sequence.add(Midi.NoteOff(51, 64), 2.0)
+synth.schedule(sequence, 4.0)
+
+/**
+Also via custom MIDI tablature notation:
+*/
+tabreader <- Midi.Tab()
+tabreader.velocity("x", 99)
+
+tab <- tabreader.sequence(@"
+48|x~--|
+51|--xx|
+")
+synth.schedule(tab, 5.0)
+
+/**
+Also via [ABC Notation](http://abcnotation.com/):
+*/
+abc <- Midi.abc("C2C2_E2_E2|CC_E_E CC_E_E|CC_E_E CC_E_E")
+synth.schedule(abc, 6.0)
+
+/**
+MML (music macro language) is also supported.
+
+## Default Clock
+
+All events scheduled in this example use the script default clock, it is also possible to schedule against other
+clocks, please see the [sequencing clocks](../sequenceclocks/sequenceclocks.html) example.
+
+To start the default clock and play the scheduled events:
+*/
+
+Time.def.start()
+
+// vim: syntax=squirrel

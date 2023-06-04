@@ -1,0 +1,179 @@
+/**
+# Using an Audio Mixer
+
+In this example we show how to use an audio mixer to combine the output of
+two or more instruments into a single stereo output.
+
+## Audio Setup
+
+First we create plugins to represent drums and bass respectively, note we
+do not take the typical step of connecting them to the main audio outputs:
+*/
+
+local drums = Lv2.Plugin("http://gareus.org/oss/lv2/avldrums#BlackPearl")
+
+local bass = Lv2.Plugin("http://calf.sourceforge.net/plugins/Monosynth", "Goa Bass")
+
+/**
+Next we create our audio mixer, specifying the number of inputs and outputs.
+Since we have two instruments, each with two outputs (stereo left and right),
+we specify four inputs, and two outputs to represent left and right stereo
+output channels:
+*/
+
+local mixer = Audio.Mixer(4, 2)
+
+/**
+We can also specify an array of initial gain values when creating the mixer. If we omit that as above the
+initial gains will be set according to the following logic:
+
+- the first input channel connects to the first output channel with a gain of 1.0, all other outputs are not connected
+- each subsequent input connects to the following output channel, or back to the first output channel if they run out
+- continue until all input channels are each connected to one output channel (output channels may not all be connected)
+
+So in the case of a 4x2 mixer, the initial gains will be set up for unity gain on two stereo inputs.
+
+To connect our plugins to the mixer we can use the mixer _add_ method, which connects an audio source to the next
+set of unused inputs. This method takes an optional gain parameter, in this case we set the gain of the drums to 
+lower its volume on the outputs:
+*/
+mixer.add(drums, 0.5)
+mixer.add(bass)
+
+/**
+At this point we connect the mixer output to the main audio outputs using the multiplex connection operator:
+*/
+mixer => Audio.StereoOutput("main", true);
+
+/**
+We can also use the multiplex connection operator to connect the sound sources to the inputs of the mixer
+using array notation. The elements of the array are connected sequentially to the inputs on the right side of
+the operator. 
+
+In this case we have two stereo plugins in the array so the result is the drums stereo output connected to 
+the first two channels of the mixer with the bass on the following two channels.
+*/
+
+[drums, bass] => mixer
+
+/**
+## Gain Values
+
+The gain value between a given input and output can be set in the constructor, during the _add_ method as above,
+or directly using the _gain_ method at any time. 
+
+A gain value used in any of these methods represents a ratio
+applied to underlying digital sample values. This means a value of 1.0 is unity gain and makes no change to the 
+audio, while a value of 0.0 represents negative infinity decibels and will thus mute the given input.
+
+We can convert these gain ratios to decibel values (dBFS) via simple equations:
+*/
+
+function ratio2db(ratio) { return 20 * Math.log10(ratio) }
+
+function db2ratio(db) { return Math.pow(10, db / 20.0) }
+
+local gain = 0.3
+print("gain ratio of " + gain + " = ")
+print(ratio2db(gain) + " dBFS\n")
+
+/**
+## MIDI Control
+
+We can also connect a hardware controller to the mixer, in this case we have a
+simple control surface and we want the faders to control the input gains.
+We create a Midi.Input that will appear in the system with the name "control", the control
+surface should connect to this input.
+
+Now we can use the _onControl_ callback to update the mixer gains when control messages are received, note we
+normalize the amount from 0-127 (MIDI control range) to a float amount 0.0 - 1.0 as expected by the gain method:
+*/
+
+Midi.Input("control").onControl(function(cc, m) {
+	local amount = cc.value / 127.0
+	switch(cc.controller) {
+/**
+The first fader on our
+hardware controller sends MIDI control number 2, so we will use that as a
+control for both input 0 (drums left) to output 0 (output left) and also
+for input 1 (drums right) to output 1 (output right).
+*/
+		case 2:
+			mixer.gain(0, 0, amount)
+			mixer.gain(1, 1, amount)
+			break
+/**
+Likewise we'll map the next fader, which sends MIDI control change number 3
+to adjust the gain for both input 2 (bass left) and input 3 (bass right) to
+the respective outputs.
+*/
+		case 3:
+			mixer.gain(2, 0, amount)
+			mixer.gain(3, 1, amount)
+			break
+	}
+})
+
+/**
+## Sample Arrangement
+
+Now we create a simple drumbeat and bassline and schedule them
+to play for a few measures:
+*/
+
+local tab = Midi.Tab()
+tab.velocity("x", 127)
+tab.velocity("o", 127)
+
+local beat = tab.sequence(@"
+42|xxxxxxxx|
+40|--o---o-|
+36|o---oo--|
+")
+
+local bassline = tab.sequence(@"
+28|--x-xx-x|
+")
+
+for(local m = 1; m <= 8; m++) {
+    drums.schedule(beat, m)
+    bass.schedule(bassline, m)
+}
+
+/**
+## Automated Faders
+
+We can also automate gain changes by scheduling when the changes
+are to occur.
+
+Here we fade the bass out over the course of the 3rd measure by
+sending control messages on every 16th note to successively
+knock down the gain for channels 2 and 3:
+*/
+
+for(local i = 0; i < 16; i++) {
+    local gain = 1 - (i + 1)/ 16.0
+	local changeL = Audio.MixerGain(2, 0, gain)
+	local changeR = Audio.MixerGain(3, 1, gain)
+	mixer.schedule(changeL, 3 + i / 16.0)
+	mixer.schedule(changeR, 3 + i / 16.0)
+}
+
+/**
+And fade it back in again on the 5th measure:
+*/
+
+for(local i = 0; i < 16; i++) {
+    local gain = (i + 1) / 16.0
+	local changeL = Audio.MixerGain(2, 0, gain)
+	local changeR = Audio.MixerGain(3, 1, gain)
+	mixer.schedule(changeL, 5 + i / 16.0)
+	mixer.schedule(changeR, 5 + i / 16.0)
+}
+
+/**
+Start the default clock:
+*/
+Time.def.restart()
+
+// vim: syntax=squirrel
