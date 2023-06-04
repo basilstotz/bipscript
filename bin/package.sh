@@ -3,18 +3,18 @@
 NAME="bipscript"
 #VERSION=$(date +%s)
 #VERSION=$(date +%Y-%m-%d-%H%M%S)
-VERSION="v0.18"
+VERSION="0.18"
 
 test -d $NAME/DEBIAN || mkdir -p $NAME/DEBIAN
 cat <<EOF > $NAME/DEBIAN/control
 Source: $NAME
-Section: unknown
+Section: sound
 Priority: extra
 Maintainer: Basil Stotz <stotz@amxa.ch>
 Package: $NAME
 Version: $VERSION 
 Architecture: amd64
-Depends: 
+Depends: liblo-tools 
 Description: Audio scripting interpreter based on squirell
  Audio scripting interpreter based on squirell
 EOF
