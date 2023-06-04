@@ -15,7 +15,7 @@ Package: $NAME
 Version: $VERSION 
 Architecture: amd64
 Depends: liblo7 jackd
-Recommends: liblo-tools
+Recommends: liblo-tools qjackctl
 Suggests: calf-plugins fluid-soundfont-gm faust
 Description: Audio scripting interpreter based on squirell
  Audio scripting interpreter based on squirell
