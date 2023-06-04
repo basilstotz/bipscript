@@ -14,8 +14,9 @@ Maintainer: Basil Stotz <stotz@amxa.ch>
 Package: $NAME
 Version: $VERSION 
 Architecture: amd64
-Depends: liblo7
-Suggests: liblo-tools 
+Depends: liblo7 jackd
+Recommends: liblo-tools
+Suggests: calf-plugins fluid-soundfont-gm
 Description: Audio scripting interpreter based on squirell
  Audio scripting interpreter based on squirell
 EOF
